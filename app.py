@@ -17,14 +17,11 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 @app.route("/", methods=["GET"])
 def home():
     return render_template("index.html")
-
 @app.route("/predict", methods=["GET", "POST"])
 def predict():
-    # Browser GET
     if request.method == "GET":
         return render_template("index.html")
 
-    # POST (from form / Postman)
     if "audio" not in request.files:
         return render_template("index.html", error="Audio file missing")
 
@@ -39,17 +36,12 @@ def predict():
     features = extract_features(temp_path)
     features = scaler.transform(features.reshape(1, -1))
 
-    probs = model.predict_proba(features)[0]
-    best_idx = probs.argmax()
-
-    label = encoder.classes_[best_idx]
-    confidence = float(probs[best_idx])
+    pred = model.predict(features)[0]
+    label = encoder.inverse_transform([pred])[0]
 
     os.remove(temp_path)
 
-    if confidence < 0.45:
-        final_prediction = "General Discomfort"
-    elif label == "physical_need":
+    if label == "physical_need":
         final_prediction = "Baby needs physical care (feeding / comfort / pain check)"
     elif label == "emotional_need":
         final_prediction = "Baby needs emotional care (sleep / attention)"
@@ -58,9 +50,28 @@ def predict():
 
     return render_template(
         "index.html",
-        prediction=final_prediction,
-        confidence=round(confidence * 100, 2)
+        prediction=final_prediction
     )
+
+@app.route("/api/predict", methods=["POST"])
+def api_predict():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"})
+
+    file = request.files["file"]
+    path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file.save(path)
+
+    features = extract_features(path)
+    features = scaler.transform(features.reshape(1, -1))
+
+    pred = model.predict(features)[0]
+    label = encoder.inverse_transform([pred])[0]
+
+    os.remove(path)
+
+    return jsonify({"prediction": label})
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
