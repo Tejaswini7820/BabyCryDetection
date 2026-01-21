@@ -1,0 +1,11 @@
+flask
+numpy
+librosa
+scikit-learn
+joblib
+soundfile
+imblearn
+xgboost
+gunicorn
+pandas
+scipy
