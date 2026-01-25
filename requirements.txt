@@ -1,8 +1,7 @@
-flask
+streamlit
 numpy
-scikit-learn
-joblib
 librosa
+scikit-learn
 soundfile
-xgboost
-imbalanced-learn
+pandas
+joblib
