@@ -11,7 +11,7 @@ from imblearn.over_sampling import SMOTE
 
 from feature_extraction import extract_features
 
-DATASET_PATH = "Baby Crying Sounds"
+DATASET_PATH = "G:/Baby Crying Sounds"
 
 X = []
 y = []

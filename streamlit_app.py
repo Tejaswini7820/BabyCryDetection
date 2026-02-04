@@ -1,15 +1,24 @@
 import streamlit as st
+from pydub import AudioSegment
 import joblib
 import os
 from feature_extraction import extract_features
 
+
+
 # ----------------------------
 # Load model components
 # ----------------------------
-model = joblib.load("baby_cry_rf_model.pkl")
-scaler = joblib.load("scaler.pkl")
-label_encoder = joblib.load("label_encoder.pkl")
+group_model = joblib.load("baby_cry_rf_model.pkl")
+group_model_1 = joblib.load("baby_cry_xgb_model.pkl")
+physical_model = joblib.load("physical_model.pkl")
+emotional_model = joblib.load("emotional_model.pkl")
 
+group_le = joblib.load("label_encoder.pkl")
+physical_le = joblib.load("physical_label_encoder.pkl")
+emotional_le = joblib.load("emotional_label_encoder.pkl")
+
+scaler = joblib.load("scaler.pkl")
 # ----------------------------
 # Page config
 # ----------------------------
@@ -108,7 +117,7 @@ with st.container():
     with col2:
         st.markdown("#### 🎵 Upload Baby Cry Audio (WAV)")
 
-    uploaded_file = st.file_uploader("", type=["wav"],help="Upload a baby cry audio file in WAV format")
+    uploaded_file = st.file_uploader("", type=["wav", "mp3"],help="Upload baby cry audio (wav, mp3)")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -120,32 +129,57 @@ predict = False  # important
 col1, col2, col3 = st.columns([4, 2, 4])
 with col2:
     predict = st.button("🔍 Predict", use_container_width=True)
+
+
+GROUP_TO_NEEDS = {
+    "physical_need": ["Hungry", "Belly Pain", "Burping", "Discomfort", "Cold/Hot"],
+    "emotional_need": ["Tired", "Lonely", "Scared"],
+    "normal": ["Laughing", "Silence"]
+}
     
 
 # ----------------------------
 # Prediction logic
 # ----------------------------
 if predict and uploaded_file is not None:
-    with open("temp.wav", "wb") as f:
+    file_ext = uploaded_file.name.split(".")[-1].lower()
+    temp_file = f"temp.{file_ext}"
+
+    with open(temp_file, "wb") as f:
         f.write(uploaded_file.getbuffer())
 
-    features = extract_features("temp.wav")
+    features = extract_features(temp_file)
     features = features.reshape(1, -1)
     features = scaler.transform(features)
 
-    prediction = model.predict(features)
-    result = label_encoder.inverse_transform(prediction)[0]
+    # ---------- Stage 1: Group prediction ----------
+    group_pred = group_model.predict(features)
+    group_result = group_le.inverse_transform(group_pred)[0]
+
+    # ---------- Stage 2: Exact need prediction ----------
+    if group_result == "physical_need":
+        exact_pred = physical_model.predict(features)
+        exact_need = physical_le.inverse_transform(exact_pred)[0]
+
+    elif group_result == "emotional_need":
+        exact_pred = emotional_model.predict(features)
+        exact_need = emotional_le.inverse_transform(exact_pred)[0]
+
+    else:
+        exact_need = "Normal"
+
+    final_output = f"{group_result.replace('_',' ').title()} ({exact_need.title()})"
 
     st.markdown(f"""
     <div class="card" style="margin-top:20px;">
         <div class="title">Prediction Result</div>
         <div style="font-size:22px;color:#2563eb;font-weight:700;margin-top:10px;">
-            {result.upper()}
+            {final_output.upper()}
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    os.remove("temp.wav")
+    os.remove(temp_file)
 
 # ----------------------------
 # Info Section
